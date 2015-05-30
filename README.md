@@ -1,2 +1,2 @@
-# ascii-tetris
+# ASCII Tetris
 A simple ASCII javascript Tetris.

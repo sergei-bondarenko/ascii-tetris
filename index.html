@@ -1,0 +1,324 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="keywords" content="ascii, tetris, game, javascript">
+    <meta name="description" content="A simple ASCII javascript Tetris.">
+    <title>ASCII Tetris</title>
+  </head>
+  <body>
+    <pre><div id="output"><!-- here is a javascript output --></div></pre>
+    <noscript>
+      <!-- if javascript disabled -->
+      Please, enable javascript.
+    </noscript>
+    <script type="text/javascript">
+      out = document.getElementById("output"); //bind variable out with output div in html
+
+      lastmove = Date.now();  //time passed from last figure move by user      >
+      lastrotate = Date.now(); //time passed from last figure rotate           > all this necessary to prevent too fast movements by user 
+      curtime = Date.now();  //current time                                    > (i have separated them, because player want move and rotate figure simultaneously)
+     
+      playfield = new Array(20);      //our playfield, that consists of spaces and blocks (□), 2-dimensional array, actually, 20x10
+                                          //we have two layers - upper with moving figure and bottom with "dead" figures   
+      for (i = 0; i < 20; i++) {        //create array playfield
+        playfield[i] = new Array(10);   //each new line - new array
+        for (j = 0; j < 10; j++) {
+          playfield[i][j] = ' ';       //clear playfield
+        }
+      }
+      
+      gamestate = 'notstarted'; //current game state: 'notstarted', 'playing' or 'gameover'
+      startscreen = setInterval(drawstartscreen, 700); //draw start screen
+      textvisible = true; //set text 'press any key to start...' visible
+      figx = 4;       //creation position
+      figy = 0;       //relatively by the most left upper point of playfield
+      score = 0;      //score points for destroying lines
+      curfigure = createfigure();  //create current figure 
+      nextfigure = createfigure(); //create next figure 
+
+      function createfigure() {   //create random figure with random orientation; return obj = {shape, height, width}
+        var type = Math.floor((Math.random() * 7));    //figure type = (0,1,2,3,4,5 or 6)
+        switch (type) {
+          case 0:
+            var obj = {     
+              shape: [['□','□','□','□']], //shape of the figure
+              height: 1,         //height of the figure
+              width: 4,          //width of the figure
+            };
+          break;
+          case 1:
+            var obj = {
+              shape: [['□','□','□'], 
+                      [' ','□',' ']],
+              height: 2,
+              width: 3,
+            };
+          break;
+          case 2:
+            var obj = {
+              shape: [['□','□',' '], 
+                      [' ','□','□']],
+              height: 2,
+              width: 3,
+            };
+          break;
+          case 3:
+            var obj = {
+              shape: [['□',' ',' '], 
+                      ['□','□','□']],
+              height: 2,
+              width: 3,
+            };
+          break;
+          case 4:
+            var obj = {
+              shape: [[' ','□','□'], 
+                      ['□','□',' ']],
+              height: 2,
+              width: 3,
+            };
+          break;
+          case 5:
+            var obj = {
+              shape: [[' ',' ','□'], 
+                      ['□','□','□']],
+              height: 2,
+              width: 3,
+            };
+          break;
+          case 6:
+            var obj = {
+              shape: [['□','□'], 
+                      ['□','□']],
+              height: 2,
+              width: 2,
+            };
+          break;
+        }
+        var rot = Math.floor((Math.random() * 4));    //random number of rotations = 0,1,2 or 3
+        for (i = 0; i < rot; i++) { obj = rotate(obj); } 
+        return obj;
+      }
+
+      function moveright() { 
+        figx += 1; 
+        if (figurecollision()) { figx -= 1; }  //if collision, then return figure back
+        else { draw(); }
+      }
+
+      function moveleft() {
+        figx -= 1; 
+        if (figurecollision()) { figx += 1; }  //if collision, then return figure back
+        else { draw(); }
+      }
+
+      function movedown() { 
+        figy += 1;
+        if (figurecollision()) { drop(); }  //if collision, then drop figure
+        else { draw(); }
+      }
+
+      function figurecollision() {    //test if the figure out of the playfield or it is colliding with other "dead" block
+        for (i = 0; i < curfigure.height; i++) {
+          for (j = 0; j < curfigure.width; j++) {
+            if (figx < 0 || figx + j > 9 || figy + i > 19) { return true; }
+            if (curfigure.shape[i][j] == '□' && playfield[figy + i][figx + j] == '□') { return true; }
+          }
+        }
+        return false;
+      }
+
+      function rotate(obj) {
+        var temp = obj.height;     //
+        obj.height = obj.width;    //swap obj.height and obj.width
+        obj.width = temp;          //
+        temp = obj.shape.slice(0);    //copy array shape to temp
+        obj.shape = new Array(obj.height);    //create array with new height and width
+        for (i = 0; i < obj.height; i++) {     //transponse array
+          obj.shape[i] =  new Array(obj.width);  //create second dimension of array
+          for (j = 0; j < obj.width; j++) {
+            obj.shape[i][j] = temp[j][i];     
+          }
+        }
+        for (i = 0; i < obj.height; i++) {   //mirror array from left to right
+          obj.shape[i].reverse();    //reverse one row
+        }
+        return obj;
+      }
+
+      function drop() {  //drop figure - move from figshape to playfield
+        while(!figurecollision()) {  //move down figure until it not touch other blocks or floor
+          figy += 1;
+        }
+        figy -= 1; //return back to last noncollision state
+        for (i = 0; i < curfigure.height; i++) {
+          for (j = 0; j < curfigure.width; j++) {
+            if (curfigure.shape[i][j] == '□') { playfield[figy + i][figx + j] = '□'; }  //if '□' in figure then copy it, this prevent replace '□' in playfield with ' '!
+          }
+        }
+        clearlines();  //blow fullfilled lines and add score points
+        curfigure = nextfigure;  
+        figx = 4;       //creation position
+        figy = 0;
+        if (figurecollision()) { draw(); gamestate = 'gameover'; clearInterval(gametimer); drawendscreen(); return; }  //if there is not enough place for figure, then stop the game
+        nextfigure = createfigure();
+        draw();
+      }
+
+      function clearlines() {   //blow fullfilled lines add score points
+        var lines = 0; //number of destroyed lines
+        i = 19;
+        while (i > 0) {    //inspect each line from bottom to top
+          if (lines > 0) { 
+            if (i - lines < 0) { 
+              playfield[i] = [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '];  //write empty line
+            } else {
+              playfield[i] = playfield[i - lines].slice(0); //replace current line with higher line
+            }
+          }
+          full = true;  //is this line fullfilled?
+          for (j = 0; j < 10; j++) {
+            if (playfield[i][j] == ' ') { full = false; }  //if the line contain empty spaces, then it is not full
+          }
+          if (full == false) { i = i - 1; } 
+          else { lines = lines + 1; }  //if line is fullfilled, then add +1 to destoyed lines and check this line again (i.e. do not reduce i)
+        }
+        switch (lines) {   //give score points
+          case 1: score = score + 100; break;  //100 for 1 line
+          case 2: score = score + 400; break;  //400 for 2 lines
+          case 3: score = score + 900; break;  //900 for 3 lines
+          case 4: score = score + 1600; break; //1600 for 4 lines
+        }
+      }
+
+      onkeydown = function(e) {
+        if (gamestate == 'playing') {    //if game is on       
+          curtime = Date.now();  //get the curretn time in ms
+          switch (e.keyCode) {
+            case 39:  //rightarrow
+              if (curtime - lastmove >= 40) {   //if from last move passed more than 40 ms, then move
+                lastmove = Date.now();     
+                moveright();
+              }
+            break; 
+            case 37: //leftarrow
+              if (curtime - lastmove >= 40) {   //if from last move passed more than 40 ms, then move
+                lastmove = Date.now();     
+                moveleft();
+              }
+            break; 
+            case 38: //uparrow
+              if (curtime - lastrotate >= 100) {   //if from last move passed more than 100 ms, then rotate
+                lastrotate = Date.now();     
+                curfigure = rotate(curfigure);
+                if (figurecollision()) { curfigure = rotate(curfigure); curfigure = rotate(curfigure); curfigure = rotate(curfigure); } //if figure can't rotated then 
+                                                                                                                                        //don't rotate it at all
+                draw();
+              }
+            break; 
+            case 32: //space
+              if (curtime - lastmove >= 100) {   //if from last move passed more than 100 ms, then drop
+                lastmove = Date.now();     
+                drop();
+              }
+            break;
+            case 40: //downarrow
+              if (curtime - lastmove >= 50) {   //if from last move passed more than 50 ms, then move
+                lastmove = Date.now();     
+                movedown();
+              }
+            break;
+          }
+        }
+        if (gamestate == 'notstarted') { gamestate = 'playing'; clearInterval(startscreen); gametimer = setInterval(movedown, 500); } //if game has not started, then 
+                                                                                           //start and stop startscreen blinking timer - move down figure each 500 ms
+      }
+
+      function getfigureline(num) {  //return one line of next figure, adjusted to square 4*4
+        //for example, if next figure is this:
+        // □ □
+        //   □ □
+        //then 
+        //getfigureline(0) == '         '
+        //getfigureline(1) == ' □ □     '
+        //getfigureline(2) == '   □ □   '
+        //getfigureline(3) == '         '
+        if (nextfigure.height == 1) {
+          if (num == 1) { return ' □ □ □ □ '; } else { return '         '; }
+        }
+        if (nextfigure.height == 2) {  
+          if ((num == 0) || (num == 3)) { return '         '; } 
+          else { 
+            if (nextfigure.width == 3) { return ' ' + nextfigure.shape[num - 1][0] + ' ' + nextfigure.shape[num - 1][1] + ' ' + nextfigure.shape[num - 1][2] + '   '; }
+            else { return '   ' + nextfigure.shape[num - 1][0] + ' ' + nextfigure.shape[num - 1][1] + '   '; }
+          }
+        }
+        if (nextfigure.height == 3) {
+          if (num == 0) { return '         '; }
+          else { return '   ' + nextfigure.shape[num - 1][0] + ' ' + nextfigure.shape[num - 1][1] + '   '; }
+        }
+        if (nextfigure.height == 4) { return '   ' + '□' + '     '; }
+      }
+
+      function drawstartscreen() {
+        out.innerHTML = '';     //clear output
+        out.innerHTML += '      ASCII Tetris<br>';
+        out.innerHTML += ' ╔════════════════════╗<br>';        
+        out.innerHTML += ' ║                    ║   Score:<br>';
+        out.innerHTML += ' ║                    ║<br>';
+        out.innerHTML += ' ║                    ║<br>';
+        out.innerHTML += ' ║Use space and arrows║ ┌─ Next ──┐<br>';
+        out.innerHTML += ' ║                    ║ │         │<br>';
+        out.innerHTML += ' ║1 row  =  100 points║ │         │<br>';
+        out.innerHTML += ' ║2 rows =  400 points║ │         │<br>';
+        out.innerHTML += ' ║3 rows =  900 points║ │         │<br>';
+        out.innerHTML += ' ║4 rows = 1600 points║ └─────────┘<br>';
+        out.innerHTML += ' ║                    ║<br>';
+        if (textvisible) { out.innerHTML += ' ║  Press any key...  ║<br>'; textvisible = false; } else { out.innerHTML += ' ║                    ║<br>'; textvisible = true; }
+        out.innerHTML += ' ║                    ║<br>';
+        out.innerHTML += ' ║                    ║<br>';
+        out.innerHTML += ' ║                    ║<br>';
+        out.innerHTML += ' ║                    ║<br>';
+        out.innerHTML += ' ║                    ║<br>';
+        out.innerHTML += ' ║                    ║<br>';
+        out.innerHTML += ' ║                    ║<br>';
+        out.innerHTML += ' ║                    ║<br>';
+        out.innerHTML += ' ║                    ║<br>';
+        out.innerHTML += ' ╚════════════════════╝';
+      }
+
+      function draw() {
+        out.innerHTML = '';     //clear output
+        out.innerHTML += '      ASCII Tetris<br>';   //write title
+        out.innerHTML += ' ╔════════════════════╗<br>'; //top border
+        for (i = 0; i < 20; i++) {
+          out.innerHTML += ' ║';  //left border
+          for (j = 0; j < 10; j++) {
+            if ((j >= figx) && j < (figx + curfigure.width) && (i >= figy) && i < (figy + curfigure.height)) {  //if we in a rectangle with size of fig.height*fig.width
+              if (playfield[i][j] == '□' || curfigure.shape[i - figy][j - figx] == '□') { out.innerHTML += '□ '; } else { out.innerHTML += '  '; }
+            } else { out.innerHTML += playfield[i][j] + ' '; }  //else we do not need take into consideration fig.shape
+          }
+          out.innerHTML += '║'; //right border
+          if (i == 0) { out.innerHTML += '   Score:'; }
+          if (i == 1) { out.innerHTML += '   ' + score; }
+          if (i == 3) { out.innerHTML += ' ┌─ Next ──┐'; }
+          if ((i >= 4) && (i <= 7)) { 
+            out.innerHTML += ' │';
+            out.innerHTML += getfigureline(i - 4);
+            out.innerHTML += '│';
+          }
+          if (i == 8) { out.innerHTML += ' └─────────┘'; }
+          out.innerHTML += '<br>';
+        }
+        out.innerHTML += ' ╚════════════════════╝'; //bottom border
+        out.innerHTML += '\n';
+      }
+
+      function drawendscreen() {
+        var x = score.toString().length;   //length of score string
+        out.innerHTML = out.innerHTML.slice(0, 344 + x) + 'GAME OVER' + out.innerHTML.slice(353 + x, 406 + x) + 'PRESS F5 TO RESTART' + out.innerHTML.slice(425 + x);  //insert the text 'GAME OVER' in the middle of output
+      }
+    </script>
+  </body>
+</html>
